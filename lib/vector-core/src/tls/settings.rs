@@ -372,7 +372,7 @@ impl TlsConfig {
                 let (data, filename) = open_read(filename, "certificate")?;
                 der_or_pem(
                     data,
-                    |der| self.parse_pkcs12_identity(der),
+                    |der| self.parse_pkcs12_identity(der, &filename),
                     |pem| self.parse_pem_identity(&pem, &filename),
                 )
             }
@@ -420,7 +420,8 @@ impl TlsConfig {
     }
 
     /// Parse identity from a DER encoded PKCS#12 archive
-    fn parse_pkcs12_identity(&self, der: Vec<u8>) -> Result<Option<IdentityStore>> {
+    fn parse_pkcs12_identity(&self, der: Vec<u8>, p12_file: &Path) -> Result<Option<IdentityStore>> {
+        let name = p12_file.to_string_lossy().to_string();
         let pkcs12 = Pkcs12::from_der(&der).context(ParsePkcs12Snafu)?;
         // Verify password
         let key_pass = self.key_pass.as_deref().unwrap_or("");
@@ -429,7 +430,7 @@ impl TlsConfig {
         let cert = parsed.cert.ok_or(TlsError::MissingCertificate)?;
         let key = parsed.pkey.ok_or(TlsError::MissingKey)?;
         let ca: Option<Vec<X509>> = parsed.ca.map(|stack| stack.iter().map(|crt| crt.to_owned()).collect());
-        Ok(Some(IdentityStore { _name: "origin: pkcs12".to_string(), cert, key, ca }))
+        Ok(Some(IdentityStore { _name: name, cert, key, ca }))
     }
 }
 
